@@ -150,6 +150,12 @@ elif menu == "📹 실시간 스트리밍(webrtc)":
         mode=WebRtcMode.SENDRECV,
         video_processor_factory=Processor,
         media_stream_constraints={"video": True, "audio": False},
+        rtc_configuration={
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}
+            ]
+        },
+        video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True},
         async_processing=True,
     )
 
