@@ -96,6 +96,7 @@ elif menu == "📹 실시간 스트리밍(webrtc)":
 
     # streamlit-webrtc는 import 비용이 좀 있어서 여기서 import
     from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
+    import av
 
     mode = st.radio("모드 선택", ["얼굴 탐지", "객체 탐지"], horizontal=True)
 
@@ -143,7 +144,7 @@ elif menu == "📹 실시간 스트리밍(webrtc)":
                 except Exception:
                     cv2.putText(img, "object detect error", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
 
-            return frame.from_ndarray(img, format="bgr24")
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
 
     webrtc_streamer(
         key="realtime",
@@ -156,6 +157,7 @@ elif menu == "📹 실시간 스트리밍(webrtc)":
             ]
         },
         video_html_attrs={"autoPlay": True, "muted": True, "playsInline": True},
+        desired_playing_state=True,
         async_processing=True,
     )
 
