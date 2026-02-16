@@ -22,7 +22,7 @@ if 'known_faces' not in st.session_state:
 # 사이드바 메뉴
 menu = st.sidebar.selectbox(
     "메뉴 선택",
-    ["🏠 홈", "📸 실시간 웹캠", "🖼️ 이미지 분석", "👤 얼굴 등록", "📚 사용법"]
+    ["🏠 홈", "📹 실시간 스트리밍(webrtc)", "📸 웹캠(스냅샷)", "🖼️ 이미지 분석", "👤 얼굴 등록", "📚 사용법"]
 )
 
 def detect_faces_opencv(image):
@@ -90,8 +90,73 @@ if menu == "🏠 홈":
     왼쪽 사이드바에서 원하는 기능을 선택하세요!
     """)
 
-elif menu == "📸 실시간 웹캠":
-    st.header("📸 실시간 웹캠")
+elif menu == "📹 실시간 스트리밍(webrtc)":
+    st.header("📹 실시간 스트리밍(webrtc)")
+    st.caption("브라우저 카메라 스트림을 받아서 실시간으로 처리해. (진짜 실시간)")
+
+    # streamlit-webrtc는 import 비용이 좀 있어서 여기서 import
+    from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
+
+    mode = st.radio("모드 선택", ["얼굴 탐지", "객체 탐지"], horizontal=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        conf = st.slider("객체 탐지 confThreshold", 0.1, 0.9, 0.5, 0.05)
+    with col2:
+        face_scale = st.slider("얼굴 탐지 scaleFactor", 1.05, 1.5, 1.10, 0.01)
+
+    class Processor(VideoProcessorBase):
+        def __init__(self):
+            self.face_cascade = cv2.CascadeClassifier(
+                cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+            )
+
+        def recv(self, frame):
+            img = frame.to_ndarray(format="bgr24")
+
+            if mode == "얼굴 탐지":
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                faces = self.face_cascade.detectMultiScale(gray, face_scale, 4)
+                for (x, y, w, h) in faces:
+                    cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                cv2.putText(img, f"faces: {len(faces)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+            else:
+                # 기존 함수는 파일 존재여부 등 Streamlit UI에 경고를 띄우기 때문에
+                # 실시간에서는 아주 단순히 '모델파일 있으면'만 처리
+                try:
+                    config_file = 'ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+                    frozen_model = 'frozen_inference_graph.pb'
+                    if os.path.exists(config_file) and os.path.exists(frozen_model):
+                        model = cv2.dnn_DetectionModel(frozen_model, config_file)
+                        model.setInputSize(320, 320)
+                        model.setInputScale(1.0/127.5)
+                        model.setInputMean((127.5, 127.5, 127.5))
+                        model.setInputSwapRB(True)
+                        ClassIndex, confidence, bbox = model.detect(img, confThreshold=float(conf))
+                        if len(ClassIndex) != 0:
+                            for ClassInd, c, boxes in zip(ClassIndex.flatten(), confidence.flatten(), bbox):
+                                cv2.rectangle(img, boxes, (0, 255, 0), 2)
+                                cv2.putText(img, f"{int(ClassInd)} {c:.2f}", (boxes[0], max(0, boxes[1]-10)),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    else:
+                        cv2.putText(img, "(object model missing)", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                except Exception:
+                    cv2.putText(img, "object detect error", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+
+            return frame.from_ndarray(img, format="bgr24")
+
+    webrtc_streamer(
+        key="realtime",
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=Processor,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+    st.info("카메라 권한 허용하면 바로 실시간으로 따라가. 끊기면 새로고침(F5)하면 돼.")
+
+elif menu == "📸 웹캠(스냅샷)":
+    st.header("📸 웹캠(스냅샷)")
     
     mode = st.radio("모드 선택", ["얼굴 탐지", "객체 탐지"])
     
